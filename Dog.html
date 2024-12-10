@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gacha Arcade</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0a0a0a;
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        /* Loading Screen */
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            z-index: 10;
+        }
+
+        /* Main Menu */
+        #menu {
+            display: none;
+            text-align: center;
+            padding-top: 20vh;
+        }
+
+        #menu button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #menu button:hover {
+            background-color: #444;
+        }
+
+        /* Game Area */
+        .game-container {
+            display: none;
+            position: relative;
+            width: 100%;
+            height: 80vh;
+            background: linear-gradient(to bottom, #111, #333);
+            overflow: hidden;
+            border: 2px solid #555;
+        }
+
+        #hero, #enemy, #bullet {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background-size: cover;
+        }
+
+        #hero {
+            bottom: 0;
+            left: 50px;
+            background-image: url('ninja.png');
+        }
+
+        #enemy {
+            bottom: 0;
+            right: 50px;
+            background-image: url('postes.png');
+        }
+
+        #bullet {
+            display: none;
+            background-image: url('tembakan.png');
+        }
+
+        .hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 16px;
+        }
+
+        .hud span {
+            margin-right: 15px;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            font-size: 18px;
+            font-weight: bold;
+            background: #444;
+            color: white;
+        }
+
+        button:active {
+            background: #666;
+        }
+
+        /* Hero Jump Animation */
+        #hero {
+            transition: bottom 0.3s ease-in-out;
+        }
+
+        .jumping {
+            animation: jump 0.3s forwards;
+        }
+
+        @keyframes jump {
+            0% {
+                bottom: 0;
+            }
+            50% {
+                bottom: 100px;
+            }
+            100% {
+                bottom: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+  
+    <!-- Loading Screen -->
+    <div id="loading">Loading...</div>
+
+    <!-- Main Menu -->
+    <div id="menu">
+        <h1>Gacha Arcade</h1>
+        <button id="start">Start Game</button>
+        <button id="exit">Exit</button>
+        <button id="choose-hero">Choose Hero</button>
+    </div>
+
+    <!-- Game Area -->
+    <div class="game-container" id="game">
+        <div id="hero"></div>
+        <div id="enemy"></div>
+        <div id="bullet"></div>
+        <div class="hud">
+            <span>Score: <span id="score">0</span></span>
+            <span>Lives: <span id="lives">3</span></span>
+            <span>Level: <span id="level">1</span></span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="left">⬅️</button>
+        <button id="jump">⬆️</button>
+        <button id="right">➡️</button>
+        <button id="shoot">🔥</button>
+    </div>
+
+    <audio id="background-music" loop>
+        <source src="dark-horror-background-252905.mp3" type="audio/mp3">
+    </audio>
+    <audio id="shoot-sound">
+        <source src="shoot-1-81135.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="boing-sound">
+        <source src="boing-101318.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="button-click-sound">
+        <source src="button-pressed-38129.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="bullet-hit-sound">
+        <source src="bullet-hit-metal-84818" type="audio/mpeg">
+    </audio>
+    <audio id="spawn-sound">
+        <source src="item_respawn-91422.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="dead8bit-sound">
+        <source src="dead-8bit-41400.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="door-open-sound">
+        <source src="door-open-46746.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        // Game Variables
+        const hero = document.getElementById("hero");
+        const enemy = document.getElementById("enemy");
+        const bullet = document.getElementById("bullet");
+        const scoreElement = document.getElementById("score");
+        const livesElement = document.getElementById("lives");
+        const levelElement = document.getElementById("level");
+
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        let isShooting = false;
+        let gameInterval;
+        let bulletInterval;
+        let heroLeft = 50;
+      
+
+        // Music
+        const backgroundMusic = document.getElementById("background-music");
+        backgroundMusic.play();
+
+        // Loading and Menu Display
+        const loading = document.getElementById("loading");
+        const menu = document.getElementById("menu");
+        const game = document.getElementById("game");
+
+        setTimeout(() => {
+            loading.style.display = "none";
+            menu.style.display = "block";
+        }, 2000);
+
+        // Game Start Logic
+        const startBtn = document.getElementById("start");
+        startBtn.addEventListener("click", () => {
+            playSound('button-click-sound');
+            menu.style.display = "none";
+            game.style.display = "block";
+            startGame();
+        });
+
+        const exitBtn = document.getElementById("exit");
+        exitBtn.addEventListener("click", () => {
+            playSound('button-click-sound');
+            alert("Thanks for Playing!");
+            window.close();
+        });
+
+        // Hero Selection Logic
+        let selectedHero = 'hero1'; // Default hero
+
+        const chooseHeroBtn = document.getElementById("choose-hero");
+        chooseHeroBtn.addEventListener("click", () => {
+            selectedHero = prompt("Choose your hero (hero1 or hero2):", 'hero1');
+            updateHero();
+        });
+
+        // Update Hero Image
+        function updateHero() {
+            if (selectedHero === 'hero2') {
+                hero.style.backgroundImage = 'url("corgi.png")';
+            } else {
+                hero.style.backgroundImage = 'url("corgi.png")';
+            }
+        }
+
+        // Character and Enemy Selections
+        document.getElementById("shoot").addEventListener("click", () => {
+            if (isShooting) return;
+            playSound('shoot-sound');
+            shootBullet();
+        });
+
+        // Shooting Logic
+        function shootBullet() {
+            isShooting = true;
+            bullet.style.display = "block";
+            bullet.style.left = `${hero.offsetLeft + 30}px`;
+            bullet.style.top = `${hero.offsetTop - 20}px`;
+
+            bulletInterval = setInterval(() => {
+                bullet.style.left = `${bullet.offsetLeft + 10}px`;
+
+                if (bullet.offsetLeft >= enemy.offsetLeft && bullet.offsetLeft <= enemy.offsetLeft + 60) {
+                    score += 10;
+                    scoreElement.textContent = score;
+                    playSound('bullet-hit-sound');
+                    enemy.style.left = `${window.innerWidth}px`; // Respawn musuh ke kanan
+                    setTimeout(() => {
+                        enemy.style.left = `${window.innerWidth}px`; // Reset posisi musuh ke kanan layar
+                    }, 500);
+                }
+            }, 50);
+
+            setTimeout(() => {
+                isShooting = false;
+                bullet.style.display = "none"; // Hapus peluru setelah ditembak
+            }, 500);
+        }
+
+        // Hero Movement Logic
+        document.getElementById("left").addEventListener("click", () => {
+            if (heroLeft > 0) {
+                heroLeft -= 10;
+                hero.style.left = `${heroLeft}px`;
+            }
+        });
+
+        document.getElementById("right").addEventListener("click", () => {
+            if (heroLeft < window.innerWidth - 60) {
+                heroLeft += 10;
+                hero.style.left = `${heroLeft}px`;
+            }
+        });
+
+        // Jump Logic
+        document.getElementById("jump").addEventListener("click", () => {
+            if (hero.classList.contains("jumping")) return;
+            hero.classList.add("jumping");
+            playSound('boing-sound');
+            let jumpHeight = 100;
+            let currentBottom = parseInt(hero.style.bottom) || 0;
+
+            hero.style.bottom = `${currentBottom + jumpHeight}px`;
+
+            setTimeout(() => {
+                hero.style.bottom = `${currentBottom}px`;
+                hero.classList.remove("jumping");
+            }, 300);
+        });
+
+        // Enemy Movement Logic
+        function moveEnemy() {
+            setInterval(() => {
+                let enemyPos = parseInt(enemy.style.left) || window.innerWidth;
+                enemy.style.left = `${enemyPos - 2}px`;
+
+                // Kalau musuh ketemu hero
+                if (enemyPos <= hero.offsetLeft + 60 && enemyPos >= hero.offsetLeft) {
+                    lives -= 1;
+                    livesElement.textContent = lives;
+                    playSound('dead8bit-sound');
+
+                    if (lives === 0) {
+                        alert("Game Over!");
+                        restartGame();
+                    }
+                }
+
+                if (enemyPos <= 0) {
+                    enemy.style.left = `${window.innerWidth}px`; // Reset posisi musuh ke kanan layar
+                    playSound('spawn-sound');
+                }
+            }, 50);
+        }
+
+        // Restart Game
+        function restartGame() {
+            score = 0;
+            lives = 3;
+            level = 1;
+            scoreElement.textContent = score;
+            livesElement.textContent = lives;
+            levelElement.textContent = level;
+            heroLeft = 50;
+            hero.style.left = `${heroLeft}px`;
+            hero.style.bottom = "0px";
+            enemy.style.left = `${window.innerWidth}px`; // Reset musuh ke kanan layar
+            game.style.display = "none";
+            menu.style.display = "block";
+        }
+
+        // Game Start
+        function startGame() {
+            moveEnemy();
+        }
+
+        // Function to play sound effects
+        function playSound(soundId) {
+            const sound = document.getElementById(soundId);
+            sound.play();
+        }
+    </script>
+</body>
+</html>
